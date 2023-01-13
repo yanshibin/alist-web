@@ -15,7 +15,7 @@ import { isMobile } from "~/utils/compatibility"
 const players: { icon: string; name: string; scheme: string }[] = [
   { icon: "iina", name: "IINA", scheme: "iina://weblink?url=$durl" },
   { icon: "potplayer", name: "PotPlayer", scheme: "potplayer://$durl" },
-  { icon: "vlc", name: "VLC", scheme: "vlc://$durl" },
+  { icon: "vlc", name: "VLC", scheme: "mpv://$durl" },
   { icon: "nplayer", name: "nPlayer", scheme: "nplayer-$durl" },
   {
     icon: "mxplayer",
