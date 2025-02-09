@@ -1,14 +1,9 @@
-import {
-  Box,
-  createDisclosure,
-  useColorModeValue,
-  VStack,
-} from "@hope-ui/solid"
+import { Box, createDisclosure, VStack } from "@hope-ui/solid"
 import { createMemo, Show } from "solid-js"
 import { RightIcon } from "./Icon"
 import { CgMoreO } from "solid-icons/cg"
 import { TbCheckbox } from "solid-icons/tb"
-import { objStore, State, toggleCheckbox, userCan } from "~/store"
+import { objStore, selectAll, State, toggleCheckbox, userCan } from "~/store"
 import { bus } from "~/utils"
 import { operations } from "./operations"
 import { IoMagnetOutline } from "solid-icons/io"
@@ -16,6 +11,8 @@ import { AiOutlineCloudUpload, AiOutlineSetting } from "solid-icons/ai"
 import { RiSystemRefreshLine } from "solid-icons/ri"
 import { usePath } from "~/hooks"
 import { Motion } from "@motionone/solid"
+import { isTocVisible, setTocDisabled } from "~/components"
+import { BiSolidBookContent } from "solid-icons/bi"
 
 export const Right = () => {
   const { isOpen, onToggle } = createDisclosure({
@@ -103,6 +100,7 @@ export const Right = () => {
                 as={operations.batch_rename.icon}
                 tips="batch_rename"
                 onClick={() => {
+                  selectAll(true)
                   bus.emit("tool", "batchRename")
                 }}
               />
@@ -121,6 +119,15 @@ export const Right = () => {
                 tips="offline_download"
                 onClick={() => {
                   bus.emit("tool", "offline_download")
+                }}
+              />
+            </Show>
+            <Show when={isTocVisible()}>
+              <RightIcon
+                as={BiSolidBookContent}
+                tips="toggle_markdown_toc"
+                onClick={() => {
+                  setTocDisabled((disabled) => !disabled)
                 }}
               />
             </Show>

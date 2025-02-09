@@ -20,7 +20,7 @@ instance.interceptors.request.use(
     // do something with request error
     console.log("Error: " + error.message) // for debug
     return Promise.reject(error)
-  }
+  },
 )
 
 // response interceptor
@@ -46,10 +46,10 @@ instance.interceptors.response.use(
     //   description: error.message,
     // });
     return {
-      code: error.response.status,
+      code: axios.isCancel(error) ? -1 : error.response?.status,
       message: error.message,
     }
-  }
+  },
 )
 
 instance.defaults.headers.common["Authorization"] =

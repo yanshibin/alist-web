@@ -1,13 +1,29 @@
 import { Component, lazy } from "solid-js"
-import { getIframePreviews } from "~/store"
-import { Obj, ObjType } from "~/types"
+import { getIframePreviews, me } from "~/store"
+import { Obj, ObjType, UserMethods, UserPermissions } from "~/types"
 import { ext } from "~/utils"
 import { generateIframePreview } from "./iframe"
+import { useRouter } from "~/hooks"
+import { getArchiveExtensions } from "~/store/archive"
+
+type Ext = string[] | "*" | (() => string[])
+
+const extsContains = (exts: Ext | undefined, ext: string): boolean => {
+  if (exts === undefined) {
+    return false
+  } else if (exts === "*") {
+    return true
+  } else if (typeof exts === "function") {
+    return (exts as () => string[])().includes(ext)
+  } else {
+    return (exts as string[]).includes(ext)
+  }
+}
 
 export interface Preview {
   name: string
   type?: ObjType
-  exts?: string[] | "*"
+  exts?: Ext
   provider?: RegExp
   component: Component
 }
@@ -15,6 +31,11 @@ export interface Preview {
 export type PreviewComponent = Pick<Preview, "name" | "component">
 
 const previews: Preview[] = [
+  {
+    name: "HTML render",
+    exts: ["html"],
+    component: lazy(() => import("./html")),
+  },
   {
     name: "Aliyun Video Previewer",
     type: ObjType.VIDEO,
@@ -41,11 +62,6 @@ const previews: Preview[] = [
     type: ObjType.TEXT,
     exts: ["url"],
     component: lazy(() => import("./text-editor")),
-  },
-  {
-    name: "HTML render",
-    exts: ["html"],
-    component: lazy(() => import("./html")),
   },
   {
     name: "Image",
@@ -78,11 +94,35 @@ const previews: Preview[] = [
     provider: /^Aliyundrive(Share)?$/,
     component: lazy(() => import("./aliyun_office")),
   },
+  {
+    name: "Asciinema",
+    exts: ["cast"],
+    component: lazy(() => import("./asciinema")),
+  },
+  {
+    name: "Video360",
+    type: ObjType.VIDEO,
+    component: lazy(() => import("./video360")),
+  },
+  {
+    name: "Archive Preview",
+    exts: () => {
+      const index = UserPermissions.findIndex(
+        (item) => item === "read_archives",
+      )
+      if (!UserMethods.can(me(), index)) return []
+      return getArchiveExtensions()
+    },
+    component: lazy(() => import("./archive")),
+  },
 ]
 
 export const getPreviews = (
-  file: Obj & { provider: string }
+  file: Obj & { provider: string },
 ): PreviewComponent[] => {
+  const { searchParams } = useRouter()
+  const typeOverride =
+    ObjType[searchParams["type"]?.toUpperCase() as keyof typeof ObjType]
   const res: PreviewComponent[] = []
   // internal previews
   previews.forEach((preview) => {
@@ -91,8 +131,8 @@ export const getPreviews = (
     }
     if (
       preview.type === file.type ||
-      preview.exts === "*" ||
-      preview.exts?.includes(ext(file.name).toLowerCase())
+      (typeOverride && preview.type === typeOverride) ||
+      extsContains(preview.exts, ext(file.name).toLowerCase())
     ) {
       res.push({ name: preview.name, component: preview.component })
     }

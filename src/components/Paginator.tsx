@@ -1,7 +1,19 @@
-import { Button, HStack, IconButton } from "@hope-ui/solid"
+import {
+  Box,
+  Button,
+  HStack,
+  IconButton,
+  Select,
+  SelectContent,
+  SelectListbox,
+  SelectOption,
+  SelectOptionText,
+  SelectTrigger,
+} from "@hope-ui/solid"
 import { createMemo, For, mergeProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { FaSolidAngleLeft, FaSolidAngleRight } from "solid-icons/fa"
+import { TbSelector } from "solid-icons/tb"
 
 export interface PaginatorProps {
   colorScheme?:
@@ -19,6 +31,7 @@ export interface PaginatorProps {
   total: number
   defaultPageSize?: number
   maxShowPage?: number
+  setResetCallback?: (callback: () => void) => void
 }
 export const Paginator = (props: PaginatorProps) => {
   const merged = mergeProps(
@@ -28,11 +41,14 @@ export const Paginator = (props: PaginatorProps) => {
       defaultCurrent: 1,
       hideOnSinglePage: true,
     },
-    props
+    props,
   )
   const [store, setStore] = createStore({
     pageSize: merged.defaultPageSize,
     current: merged.defaultCurrent,
+  })
+  merged.setResetCallback?.(() => {
+    setStore("current", merged.defaultCurrent)
   })
   const pages = createMemo(() => {
     return Math.ceil(merged.total / store.pageSize)
@@ -46,9 +62,12 @@ export const Paginator = (props: PaginatorProps) => {
     const current = store.current
     const max = Math.min(
       pages() - 1,
-      current + Math.floor(merged.maxShowPage / 2)
+      current + Math.floor(merged.maxShowPage / 2),
     )
     return Array.from({ length: max - current }, (_, i) => current + 1 + i)
+  })
+  const allPages = createMemo(() => {
+    return Array.from({ length: pages() }, (_, i) => 1 + i)
   })
   const size = {
     "@initial": "sm",
@@ -97,14 +116,37 @@ export const Paginator = (props: PaginatorProps) => {
             </Button>
           )}
         </For>
-        <Button
+        <Select
           size={size}
-          colorScheme={merged.colorScheme}
-          variant="solid"
-          px={store.current > 10 ? "$2_5" : "$3"}
+          variant="unstyled"
+          defaultValue={store.current}
+          onChange={(page) => {
+            onPageChange(+page)
+          }}
         >
-          {store.current}
-        </Button>
+          <SelectTrigger
+            as={Button}
+            size={size}
+            width="auto"
+            px="$1"
+            variant="solid"
+            colorScheme={merged.colorScheme}
+          >
+            <Box px={store.current > 10 ? "$1_5" : "$2"}>{store.current}</Box>
+            <TbSelector />
+          </SelectTrigger>
+          <SelectContent minW="80px">
+            <SelectListbox>
+              <For each={allPages()}>
+                {(page) => (
+                  <SelectOption value={page}>
+                    <SelectOptionText px="$2">{page}</SelectOptionText>
+                  </SelectOption>
+                )}
+              </For>
+            </SelectListbox>
+          </SelectContent>
+        </Select>
         <For each={rightPages()}>
           {(page) => (
             <Button

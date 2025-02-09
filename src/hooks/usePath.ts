@@ -6,7 +6,10 @@ import {
   State,
   getPagination,
   objStore,
-  recoverScroll,
+  hasHistory,
+  recoverHistory,
+  clearHistory,
+  me,
 } from "~/store"
 import {
   fsGet,
@@ -19,11 +22,14 @@ import {
 import { useFetch } from "./useFetch"
 import { useRouter } from "./useRouter"
 
+let first_fetch = true
+
+let cancelObj: Canceler
 let cancelList: Canceler
 export function addOrUpdateQuery(
   key: string,
   value: any,
-  type = "replaceState"
+  type = "replaceState",
 ) {
   let url = type === "location" ? location.href : location.hash
 
@@ -66,17 +72,28 @@ let globalPage = 1
 export const getGlobalPage = () => {
   return globalPage
 }
-export const resetGlobalPage = () => {
+export const setGlobalPage = (page: number) => {
   const pagination = getPagination()
-  globalPage = 1
+  globalPage = page
   if (pagination.type === "pagination") {
-    addOrUpdateQuery("page", 1)
+    addOrUpdateQuery("page", page)
   }
-  console.log("resetGlobalPage", globalPage)
+  console.log("setGlobalPage", globalPage)
+}
+export const resetGlobalPage = () => {
+  setGlobalPage(1)
 }
 export const usePath = () => {
-  const { pathname } = useRouter()
-  const [, getObj] = useFetch((path: string) => fsGet(path, password()))
+  const { pathname, to } = useRouter()
+  const [, getObj] = useFetch((path: string) =>
+    fsGet(
+      path,
+      password(),
+      new axios.CancelToken((c) => {
+        cancelObj = c
+      }),
+    ),
+  )
   const pagination = getPagination()
   if (pagination.type === "pagination" && getQueryVariable("page")) {
     globalPage = parseInt(getQueryVariable("page"))
@@ -99,11 +116,11 @@ export const usePath = () => {
         page.index,
         page.size,
         arg?.force,
-        new axios.CancelToken(function executor(c) {
+        new axios.CancelToken((c) => {
           cancelList = c
-        })
+        }),
       )
-    }
+    },
   )
   // set a path must be a dir
   const setPathAs = (path: string, dir = true, push = false) => {
@@ -124,13 +141,16 @@ export const usePath = () => {
   // if not, fetch get then determine if it is dir or file
   const handlePathChange = (path: string, rp?: boolean, force?: boolean) => {
     log(`handle [${path}] change`)
+    cancelObj?.()
     cancelList?.()
     retry_pass = rp ?? false
-    handleErr("")
-    if (IsDirRecord[path]) {
-      handleFolder(path, globalPage, undefined, undefined, force)
+    ObjStore.setErr("")
+    if (hasHistory(path)) {
+      return recoverHistory(path)
+    } else if (IsDirRecord[path]) {
+      return handleFolder(path, globalPage, undefined, undefined, force)
     } else {
-      handleObj(path)
+      return handleObj(path)
     }
   }
 
@@ -148,12 +168,13 @@ export const usePath = () => {
           handleFolder(path, globalPage)
         } else {
           ObjStore.setReadme(data.readme)
+          ObjStore.setHeader(data.header)
           ObjStore.setRelated(data.related ?? [])
           ObjStore.setRawUrl(data.raw_url)
           ObjStore.setState(State.File)
         }
       },
-      handleErr
+      handleErr,
     )
   }
 
@@ -163,7 +184,7 @@ export const usePath = () => {
     index?: number,
     size?: number,
     append = false,
-    force?: boolean
+    force?: boolean,
   ) => {
     if (!size) {
       size = pagination.size
@@ -171,12 +192,12 @@ export const usePath = () => {
     if (size !== undefined && pagination.type === "all") {
       size = undefined
     }
-    globalPage = index ?? 1
     ObjStore.setState(append ? State.FetchingMore : State.FetchingObjs)
     const resp = await getObjs({ path, index, size, force })
     handleRespWithoutNotify(
       resp,
       (data) => {
+        globalPage = index ?? 1
         if (append) {
           appendObjs(data.content)
         } else {
@@ -184,14 +205,12 @@ export const usePath = () => {
           ObjStore.setTotal(data.total)
         }
         ObjStore.setReadme(data.readme)
+        ObjStore.setHeader(data.header)
         ObjStore.setWrite(data.write)
         ObjStore.setProvider(data.provider)
         ObjStore.setState(State.Folder)
-        if (!(append && (index ?? 1) > 1)) {
-          recoverScroll(path)
-        }
       },
-      handleErr
+      handleErr,
     )
   }
 
@@ -202,22 +221,52 @@ export const usePath = () => {
         notify.error(msg)
       }
     } else {
-      ObjStore.setErr(msg)
+      const basePath = me().base_path
+      if (
+        first_fetch &&
+        basePath != "/" &&
+        pathname().includes(basePath) &&
+        msg.endsWith("object not found")
+      ) {
+        first_fetch = false
+        to(pathname().replace(basePath, ""))
+        return
+      }
+      if (code === undefined || code >= 0) {
+        ObjStore.setErr(msg)
+      }
     }
   }
   const pageChange = (index?: number, size?: number, append = false) => {
-    handleFolder(pathname(), index, size, append)
+    return handleFolder(pathname(), index, size, append)
+  }
+  const loadMore = () => {
+    return pageChange(globalPage + 1, undefined, true)
   }
   return {
     handlePathChange: handlePathChange,
     setPathAs: setPathAs,
-    refresh: (retry_pass?: boolean, force?: boolean) => {
-      handlePathChange(pathname(), retry_pass, force)
+    refresh: async (retry_pass?: boolean, force?: boolean) => {
+      const path = pathname()
+      const scroll = window.scrollY
+      clearHistory(path)
+      if (
+        pagination.type === "load_more" ||
+        pagination.type === "auto_load_more"
+      ) {
+        const page = globalPage
+        resetGlobalPage()
+        await handlePathChange(path, retry_pass, force)
+        while (globalPage < page) {
+          await loadMore()
+        }
+      } else {
+        await handlePathChange(path, retry_pass, force)
+      }
+      window.scroll({ top: scroll, behavior: "smooth" })
     },
     pageChange: pageChange,
-    loadMore: () => {
-      pageChange(globalPage + 1, undefined, true)
-    },
+    loadMore: loadMore,
     allLoaded: () => globalPage >= Math.ceil(objStore.total / pagination.size),
   }
 }
