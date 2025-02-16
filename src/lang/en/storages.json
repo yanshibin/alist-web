@@ -1,7 +1,7 @@
 {
   "common": {
     "mount_path": "Mount Path",
-    "mount_path-tips":"The path you want to mount to, it is unique and cannot be repeated",
+    "mount_path-tips": "The path you want to mount to, it is unique and cannot be repeated",
     "driver": "Driver",
     "order": "Order",
     "order-tips": "Use to sort",
@@ -12,6 +12,8 @@
     "down_proxy_url": "Download proxy URL",
     "web_proxy": "Web proxy",
     "webdav_policy": "WebDAV policy",
+    "proxy_range": "Proxy Range",
+    "proxy_range-tips": "Need to enable proxy",
     "webdav_policys": {
       "302_redirect": "302 redirect",
       "use_proxy_url": "use proxy URL",
@@ -33,11 +35,13 @@
       "front": "Extract to front",
       "back": "Extract to back"
     },
-    "enable_sign": "Enable sign"
+    "enable_sign": "Enable sign",
+    "disable_index": "Disable index"
   },
   "other": {
     "start_load_success": "Start loading",
     "load_all": "Reload All",
-    "filter_by_driver": "Filter by driver"
+    "filter_by_driver": "Filter by driver",
+    "table_layout": "Table layout"
   }
 }

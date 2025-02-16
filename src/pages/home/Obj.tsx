@@ -1,8 +1,24 @@
-import { useColorModeValue, VStack } from "@hope-ui/solid"
-import { Suspense, Switch, Match, lazy, createEffect, on } from "solid-js"
-import { FullLoading, Error } from "~/components"
-import { resetGlobalPage, useObjTitle, usePath, useRouter } from "~/hooks"
-import { objStore, recordScroll, /*layout,*/ State } from "~/store"
+import { Text, useColorModeValue, VStack } from "@hope-ui/solid"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  Match,
+  on,
+  Suspense,
+  Switch,
+} from "solid-js"
+import { Error, FullLoading, LinkWithBase } from "~/components"
+import { resetGlobalPage, useObjTitle, usePath, useRouter, useT } from "~/hooks"
+import {
+  getPagination,
+  objStore,
+  password,
+  recordHistory,
+  setPassword,
+  /*layout,*/ State,
+} from "~/store"
 
 const Folder = lazy(() => import("./folder/Folder"))
 const File = lazy(() => import("./file/File"))
@@ -10,26 +26,39 @@ const Password = lazy(() => import("./Password"))
 // const ListSkeleton = lazy(() => import("./Folder/ListSkeleton"));
 // const GridSkeleton = lazy(() => import("./Folder/GridSkeleton"));
 
+const [objBoxRef, setObjBoxRef] = createSignal<HTMLDivElement>()
+export { objBoxRef }
+
 let first = true
 export const Obj = () => {
+  const t = useT()
   const cardBg = useColorModeValue("white", "$neutral3")
-  const { pathname } = useRouter()
-  const { handlePathChange } = usePath()
+  const { pathname, searchParams } = useRouter()
+  const { handlePathChange, refresh } = usePath()
+  const pagination = getPagination()
+  const page = createMemo(() => {
+    return pagination.type === "pagination"
+      ? parseInt(searchParams["page"]) || 1
+      : undefined
+  })
   let lastPathname = pathname()
+  let lastPage = page()
   createEffect(
-    on(pathname, (pathname) => {
+    on([pathname, page], async ([pathname, page]) => {
       useObjTitle()
       if (!first) {
+        recordHistory(lastPathname, lastPage)
         resetGlobalPage()
       }
       first = false
-      recordScroll(lastPathname, window.scrollY)
-      handlePathChange(pathname)
+      await handlePathChange(pathname, page)
       lastPathname = pathname
-    })
+      lastPage = page
+    }),
   )
   return (
     <VStack
+      ref={(el: HTMLDivElement) => setObjBoxRef(el)}
       class="obj-box"
       w="$full"
       rounded="$xl"
@@ -45,7 +74,7 @@ export const Obj = () => {
           </Match>
           <Match
             when={[State.FetchingObj, State.FetchingObjs].includes(
-              objStore.state
+              objStore.state,
             )}
           >
             <FullLoading />
@@ -54,7 +83,23 @@ export const Obj = () => {
             </Show> */}
           </Match>
           <Match when={objStore.state === State.NeedPassword}>
-            <Password />
+            <Password
+              title={t("home.input_password")}
+              password={password}
+              setPassword={setPassword}
+              enterCallback={() => refresh(true)}
+            >
+              <Text>{t("global.have_account")}</Text>
+              <Text
+                color="$info9"
+                as={LinkWithBase}
+                href={`/@login?redirect=${encodeURIComponent(
+                  location.pathname,
+                )}`}
+              >
+                {t("global.go_login")}
+              </Text>
+            </Password>
           </Match>
           <Match
             when={[State.Folder, State.FetchingMore].includes(objStore.state)}
